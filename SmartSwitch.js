@@ -13,7 +13,7 @@ class SmartSwitch extends SmartDevice {
 
   detectButtonChange() {
     setWatch(() => {
-      this.sendSignal('enabled', true);
+      this.sendSignal({ enabled: true });
     }, this.BTN, {
       repeat: true,
       edge: 'rising',

@@ -21,3 +21,4 @@ PID is 4 16bit digit code of Product ID starting from 0001;
 | 0003 | Smart temperature sensor |
 | 0004 | Smart light meter        |
 | 0005 | Smart relay              |
+| 0006 | Smart RGB LED            |

@@ -3,27 +3,27 @@ const SmartDevice = require('SmartDevice');
 const vid = '0001';
 const pid = '0001';
 
-class SmartBulb extends SmartDevice {
-  constructor(params) {
-    super(vid, pid, params);
+function SmartBulb(params) {
+  SmartDevice.call(this, vid, pid, params);
 
-    this.LED = params.config.pin;
-    this.data = {
-      enabled: true,
-      color: 'white',
-      brightness: 70
-    };
-  }
+  console.log('SmartBulb this', this);
 
-  process() {
-    const { enabled } = this.data;
-
-    if (enabled) {
-      digitalWrite(this.LED, 0);
-    } else {
-      digitalWrite(this.LED, 1);
-    }
-  }
+  this.LED = params.config.pin;
+  this.data = {
+    enabled: true,
+    color: 'white',
+    brightness: 70
+  };
 }
+
+SmartBulb.prototype = Object.create(SmartDevice.prototype);
+
+SmartBulb.prototype.process = function () {
+  if (this.data.enabled) {
+    digitalWrite(this.LED, 1);
+  } else {
+    digitalWrite(this.LED, 0);
+  }
+};
 
 exports = SmartBulb;
