@@ -1,5 +1,7 @@
 const wifi = require('Wifi');
 const WebSocket = require('ws');
+const messageQueue = require('messageQueue');
+const connectionManager = require("connectionManager");
 
 function SmartDevice(vid, pid, params) {
   this.params = Object.assign({
@@ -11,8 +13,7 @@ function SmartDevice(vid, pid, params) {
       password: 'kek'
     },
     ws: {
-      host: 'localhost',
-      port: '88'
+      port: '8080'
     },
     reconnect: true,
     reconnectInterval: 5000,
@@ -20,10 +21,31 @@ function SmartDevice(vid, pid, params) {
   }, params);
 
   this.name = this.params.name || this.params.vid + '/' + this.params.pid + '/' + this.params.sno;
+  this.hotspotName = "SmartDevice_" + this.params.pid + "_" + this.params.vid;
   this.ws = null;
   this.data = null;
+  this.connection = null;
+  this.connected = false;
+  this.registered = false;
 
   return this;
+}
+
+SmartDevice.prototype.getConnection = function () {
+  if (this.connection) {
+    return Promise.resolve(this.connection);
+  }
+
+  this.onStartConfiguration();
+
+  console.log("Starting hotspot with name", this.hotspotName);
+
+  return connectionManager(this.hotspotName)
+    .then(connection => {
+      console.log("Finishing configuration", connection);
+      this.onFinishConfiguration();
+      this.connection = connection;
+    })
 }
 
 SmartDevice.prototype.connectWifi = function () {
@@ -33,9 +55,13 @@ SmartDevice.prototype.connectWifi = function () {
     let attempts = 0;
 
     const establishWifi = () => {
-      wifi.connect(this.params.wifi.name, { password: this.params.wifi.password }, err => {
+      this.connected = false;
+      this.onStartConnectWifi();
+
+      wifi.connect(this.connection.ssid, {password: this.connection.password}, err => {
         if (err) {
           attempts++;
+          this.onWifiError(err);
 
           if (this.params.reconnect && attempts <= this.params.connectionAttempts) {
             return setTimeout(() => establishWifi(), this.params.reconnectInterval);
@@ -45,6 +71,8 @@ SmartDevice.prototype.connectWifi = function () {
         }
 
         console.log('Wifi connection successful!');
+        this.connected = true;
+        this.onWifiConnected(wifi.getStatus());
         return resolve(wifi.getStatus());
       });
     };
@@ -54,7 +82,7 @@ SmartDevice.prototype.connectWifi = function () {
 };
 
 SmartDevice.prototype.connectWebsocket = function () {
-  console.log('Trying to connect to WebSocket...');
+  console.log('Trying to connect to WebSocket ' + this.connection.gateway + '...');
 
   return new Promise((resolve, reject) => {
     let attempts = 0;
@@ -64,7 +92,10 @@ SmartDevice.prototype.connectWebsocket = function () {
         this.ws = null;
       }
 
-      this.ws = new WebSocket(this.params.ws.host, {
+      this.registered = false;
+      this.onStartConnectWebsocket();
+
+      this.ws = new WebSocket(this.connection.gateway, {
         port: this.params.ws.port,
         headers: {
           pid: this.params.pid,
@@ -76,6 +107,8 @@ SmartDevice.prototype.connectWebsocket = function () {
       this.ws.on('open', () => {
         console.log('WebSocket connection successful!');
 
+        this.registered = true;
+        this.onWebsocketConnected(this.ws);
         return resolve(this.ws);
       });
 
@@ -95,6 +128,8 @@ SmartDevice.prototype.connectWebsocket = function () {
       this.ws.on('error', (error) => {
         console.log('WebSocket connection error', error);
 
+        this.onWebsocketError(error);
+
         if (this.params.reconnect && attempts <= this.params.connectionAttempts) {
           return setTimeout(() => this.connectWebsocket(), this.params.reconnectInterval);
         }
@@ -108,14 +143,15 @@ SmartDevice.prototype.connectWebsocket = function () {
 };
 
 SmartDevice.prototype.connect = function () {
-  return this.connectWifi()
+  return this.getConnection()
+    .then(() => this.connectWifi())
     .then(() => this.connectWebsocket());
 };
 
 SmartDevice.prototype.processMessage = function (packet) {
   const message = JSON.parse(packet);
 
-  switch(message.type) {
+  switch (message.type) {
     case 'get':
       console.log('Send data to hub', message.uuid);
       this.sendUpdate(message.uuid);
@@ -127,6 +163,19 @@ SmartDevice.prototype.processMessage = function (packet) {
     case 'signal':
       console.log('Got signal from hub', message.signal);
       this.sendMessage({type: 'signal', signal: message.signal});
+      break;
+    case 'response':
+      if (message.uuid && messageQueue.hasQueue(message.uuid)) {
+        messageQueue.resolveMessage(message.uuid, message.response);
+      }
+      break;
+    case 'response_error':
+      if (message.uuid && messageQueue.hasQueue(message.uuid)) {
+        messageQueue.rejectMessage(message.uuid, message.error);
+      }
+      break;
+    case 'ping':
+      this.sendMessage({uuid: message.uuid, type: 'pong'});
       break;
     default:
       console.log('Unhandled message', message);
@@ -169,11 +218,11 @@ SmartDevice.prototype.getData = function () {
 };
 
 SmartDevice.prototype.sendData = function (data, uuid) {
-  return this.sendMessage({ type: 'data', data: data, uuid: uuid });
+  return this.sendMessage({type: 'data', data: data, uuid: uuid});
 };
 
 SmartDevice.prototype.sendSignal = function (signal) {
-  return this.sendMessage({ type: 'signal', signal: signal });
+  return this.sendMessage({type: 'signal', signal: signal});
 };
 
 SmartDevice.prototype.setData = function (newData) {
@@ -185,6 +234,39 @@ SmartDevice.prototype.setData = function (newData) {
 
 SmartDevice.prototype.process = function (prevData) {
   console.log('Processing data change', this.data, prevData);
+};
+
+// connection events
+SmartDevice.prototype.onStartConfiguration = function () {};
+
+SmartDevice.prototype.onFinishConfiguration = function () {};
+
+SmartDevice.prototype.onStartConnectWifi = function () {};
+
+SmartDevice.prototype.onWifiConnected = function (wifi) {};
+
+SmartDevice.prototype.onWifiError = function (e) {};
+
+SmartDevice.prototype.onStartConnectWebsocket = function () {};
+
+SmartDevice.prototype.onWebsocketConnected = function (ws) {};
+
+SmartDevice.prototype.onWebsocketError = function (e) {};
+
+SmartDevice.prototype.sendAPIRequest = function (request, payload) {
+  const uuid = Math.random().toString();
+
+  this.sendMessage({type: 'request', uuid: uuid, command: request, payload: payload});
+
+  return new Promise((resolve, reject) => {
+    messageQueue.addMessage(uuid, (error, result) => {
+      if (error) {
+        return reject(error);
+      }
+
+      return resolve(result);
+    }, 10000);
+  });
 };
 
 exports = SmartDevice;
