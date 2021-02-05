@@ -8,10 +8,6 @@ function SmartDevice(vid, pid, params) {
     pid: pid || '0000',
     vid: vid || '0000',
     sno: '00000000',
-    wifi: {
-      name: 'lol',
-      password: 'kek'
-    },
     ws: {
       port: '8080'
     },
@@ -122,6 +118,8 @@ SmartDevice.prototype.connectWebsocket = function () {
       this.ws.on('close', (code) => {
         console.log('WebSocket connection close', code);
         attempts++;
+
+        this.onWebsocketClose(code);
 
         if (this.params.reconnect) {
           return setTimeout(() => establishWebsocket(), this.params.reconnectInterval);
@@ -255,6 +253,8 @@ SmartDevice.prototype.onStartConnectWebsocket = function () {};
 SmartDevice.prototype.onWebsocketConnected = function (ws) {};
 
 SmartDevice.prototype.onWebsocketError = function (e) {};
+
+SmartDevice.prototype.onWebsocketClose = function (e) {};
 
 SmartDevice.prototype.sendAPIRequest = function (request, payload) {
   const uuid = Math.random().toString();

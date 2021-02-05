@@ -2,7 +2,7 @@ const http = require("http");
 const Storage = require("Storage")
 const wifi = require("Wifi");
 
-const connectionManager = (name) => {
+function connectionManager(name) {
   return new Promise((resolve, reject) => {
     let server = null;
     const listener = (req, res) => {
@@ -38,7 +38,10 @@ const connectionManager = (name) => {
             res.end();
 
             wifi.stopAP(() => {
-              server.close();
+              if (server) {
+                server.close();
+              }
+
               resolve(data);
             });
           });

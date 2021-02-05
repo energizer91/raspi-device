@@ -21,8 +21,7 @@ function SmartMeteoStation(params) {
   // menu items
   this.title = 'Welcome';
 
-  this.sensors = [];
-  this.forecast = {
+  this.data = {
     name: '',
     temperature: 0,
     humidity: 0,
@@ -88,6 +87,7 @@ SmartMeteoStation.prototype.onStartConnectWebsocket = function () {
 
 SmartMeteoStation.prototype.onWebsocketConnected = function () {
   this.updateForecast();
+  // TODO: rewrite to getting weather by server, not client
   this.updateTimer = setInterval(() => this.updateForecast(), 60000);
 };
 
@@ -103,7 +103,7 @@ SmartMeteoStation.prototype.onWebsocketError = function (e) {
 SmartMeteoStation.prototype.updateForecast = function () {
   this.title = 'Getting temperature';
   this.setStatusBar();
-  if (!this.forecast.temperature) {
+  if (!this.data.temperature) {
     this.writeText('Getting Forecast');
   }
   this.getForecast();
@@ -174,24 +174,22 @@ SmartMeteoStation.prototype.getForecast = function () {
   })
     .then(forecast => {
       console.log('forecast', forecast);
-      this.forecast.name = forecast.name;
 
-      this.title = this.forecast.name;
-      this.setStatusBar();
+      this.setData({
+        name: forecast.name,
+        weather: forecast.weather && forecast.weather.length && forecast.weather[0].description || forecast.weather[0].main,
+        temperature: Math.round(forecast.main.temp - 273.15),
+        humidity: forecast.main.humidity
+      });
 
-      if (forecast.weather && forecast.weather.length) {
-        this.forecast.weather = forecast.weather[0].description || forecast.weather[0].main;
-      }
+      this.title = this.data.name;
 
-      this.forecast.temperature = Math.round(forecast.main.temp - 273.15);
-      this.forecast.humidity = forecast.main.humidity;
-
-      this.renderTemperature(this.forecast.temperature, this.forecast.humidity, this.forecast.weather);
+      this.renderTemperature();
     })
     .catch(error => this.writeText('Error: ' + error.message));
 };
 
-SmartMeteoStation.prototype.renderTemperature = function (temperature, humidity, weather) {
+SmartMeteoStation.prototype.renderTemperature = function () {
   if (!this.lcd) {
     return;
   }
@@ -199,13 +197,13 @@ SmartMeteoStation.prototype.renderTemperature = function (temperature, humidity,
   this.clearArea(0, 12, 128, 64);
 
   this.lcd.setFontVector(30);
-  const temperatureWidth = this.lcd.stringWidth(temperature);
-  this.lcd.drawString(temperature, 0, 12);
+  const temperatureWidth = this.lcd.stringWidth(this.data.temperature);
+  this.lcd.drawString(this.data.temperature, 0, 12);
   this.lcd.drawCircle(temperatureWidth + 6, 16, 3);
   this.lcd.drawString('C', temperatureWidth + 10, 12);
   this.lcd.setFont6x8();
-  this.lcd.drawString(humidity + '% RH', 0, 45);
-  this.lcd.drawString(weather, 0, 54);
+  this.lcd.drawString(this.data.humidity + '% RH', 0, 45);
+  this.lcd.drawString(this.data.weather, 0, 54);
 
   this.lcd.flip();
 };
