@@ -72,8 +72,11 @@ SmartDevice.prototype.connectWifi = function () {
 
         console.log('Wifi connection successful!');
         this.connected = true;
-        this.onWifiConnected(wifi.getStatus());
-        return resolve(wifi.getStatus());
+
+        const status = wifi.getStatus();
+
+        this.onWifiConnected(status);
+        return resolve(status);
       });
     };
 

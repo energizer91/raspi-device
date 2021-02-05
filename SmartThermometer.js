@@ -10,6 +10,7 @@ function SmartThermometer(params) {
   this.retries = params.retries || 10;
   this.pin = params.config.pin;
   this.thermometer = dht.connect(this.pin);
+  this.request = false;
   this.data = {
     temperature: 0,
     humidity: 0
@@ -19,13 +20,21 @@ function SmartThermometer(params) {
 SmartThermometer.prototype = Object.create(SmartDevice.prototype);
 
 SmartThermometer.prototype.getData = function () {
-  return new Promise((resolve, reject) => {
+  if (this.request) {
+    return this.request;
+  }
+
+  this.request = new Promise((resolve, reject) => {
     if (!this.thermometer) {
       return reject(new Error('Thermometer is not defined'));
     }
 
     this.thermometer.read(data => {
       console.log('Thermometer response', data);
+
+      setTimeout(() => {
+        this.request = null;
+      }, 5000);
 
       if (data.err) {
         if (data.checksumError) {
@@ -41,6 +50,8 @@ SmartThermometer.prototype.getData = function () {
       });
     }, this.retries);
   });
+
+  return this.request;
 };
 
 exports = SmartThermometer;

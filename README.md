@@ -32,6 +32,7 @@ There's a list of already registered devices (in my server at least):
 
 | VID  | PID  | SNO      |
 |------|------|----------|
+| 0001 | 0003 | 00000003 |
 | 0001 | 0007 | 00000007 |
 
 ## Connecting new devices:
@@ -47,3 +48,22 @@ After that device will disable AP and will try to connect to gateway.
 TBD:
 - checking wifi availability and re-enable config if something goes wrong
 - resetting config so you can reconnect to other network without IDE (button maybe?)
+
+## Flashing:
+
+### ESP8266
+
+Get the latest firmware for ESP8266 from https://www.espruino.com/EspruinoESP8266. Install esptools.
+
+```bash
+python esptool.py --port COM6 --baud 115200 write_flash --flash_freq 80m --flash_mode qio --flash_size 32m 0x0000 boot_v1.6.bin 0x1000 espruino_esp8266_user1.bin 0x3FC000 esp_init_data_default.bin 0x3FE000 blank.bin
+```
+
+### ESP32
+
+Get the latest firmware for ESP32 from https://www.espruino.com/ESP32. Install esptools.
+
+```bash
+python esptool.py --port COM6 --baud 115200 write_flash --flash_freq 80m --flash_mode qio --flash_size 32m 0x0000 boot_v1.6.bin 0x1000 espruino_esp8266_user1.bin 0x3FC000 esp_init_data_default.bin 0x3FE000 blank.bin
+```
+
