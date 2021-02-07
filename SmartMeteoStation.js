@@ -101,9 +101,9 @@ SmartMeteoStation.prototype.onWebsocketError = function (e) {
 };
 
 SmartMeteoStation.prototype.updateForecast = function () {
-  this.title = 'Getting temperature';
-  this.setStatusBar();
   if (!this.data.temperature) {
+    this.title = 'Getting temperature';
+    this.setStatusBar();
     this.writeText('Getting Forecast');
   }
   this.getForecast();
@@ -184,6 +184,7 @@ SmartMeteoStation.prototype.getForecast = function () {
 
       this.title = this.data.name;
 
+      this.setStatusBar();
       this.renderTemperature();
     })
     .catch(error => this.writeText('Error: ' + error.message));

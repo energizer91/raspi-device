@@ -11,6 +11,7 @@ function SmartThermometer(params) {
   this.pin = params.config.pin;
   this.thermometer = dht.connect(this.pin);
   this.request = false;
+  this.updating = false; // to not call update function more than 1 time per 10 seconds
   this.data = {
     temperature: 0,
     humidity: 0
@@ -18,7 +19,7 @@ function SmartThermometer(params) {
 
   this.getTemperature();
 
-  setTimeout(() => this.getTemperature(), 10000);
+  setInterval(() => this.getTemperature(), 30000);
 }
 
 SmartThermometer.prototype = Object.create(SmartDevice.prototype);
@@ -28,8 +29,19 @@ SmartThermometer.prototype.getTemperature = function() {
     throw new Error('Thermometer is not defined');
   }
 
+  if (this.updating) {
+    return;
+  }
+
+  this.updating = true;
+
+  const updatingTimeout = setInterval(() => {
+    this.updating = false;
+  }, 10000);
+
   this.thermometer.read(data => {
-    console.log('Thermometer response', data);
+    this.updating = false;
+    clearInterval(updatingTimeout);
 
     if (data.err) {
       if (data.checksumError) {
