@@ -45,12 +45,11 @@ SmartDevice.prototype.getConnection = function () {
 }
 
 SmartDevice.prototype.connectWifi = function () {
-  console.log('Trying to connect to wifi...');
-
   return new Promise((resolve, reject) => {
     let attempts = 0;
 
     const establishWifi = () => {
+      console.log('Trying to connect to wifi...');
       this.connected = false;
       this.onStartConnectWifi();
 
@@ -66,6 +65,7 @@ SmartDevice.prototype.connectWifi = function () {
           return reject(err);
         }
 
+        attempts = 0;
         console.log('Wifi connection successful!');
         this.connected = true;
 
@@ -81,12 +81,12 @@ SmartDevice.prototype.connectWifi = function () {
 };
 
 SmartDevice.prototype.connectWebsocket = function () {
-  console.log('Trying to connect to WebSocket ' + this.connection.gateway + '...');
-
   return new Promise((resolve, reject) => {
     let attempts = 0;
 
     const establishWebsocket = () => {
+      console.log('Trying to connect to WebSocket...');
+
       if (this.ws) {
         this.ws = null;
       }
@@ -105,6 +105,7 @@ SmartDevice.prototype.connectWebsocket = function () {
 
       this.ws.on('open', () => {
         console.log('WebSocket connection successful!');
+        attempts = 0;
 
         this.registered = true;
         this.onWebsocketConnected(this.ws);
@@ -122,6 +123,7 @@ SmartDevice.prototype.connectWebsocket = function () {
         this.onWebsocketClose(code);
 
         if (this.params.reconnect) {
+          console.log('Reconnect...');
           return setTimeout(() => establishWebsocket(), this.params.reconnectInterval);
         }
       });
@@ -132,7 +134,8 @@ SmartDevice.prototype.connectWebsocket = function () {
         this.onWebsocketError(error);
 
         if (this.params.reconnect && attempts <= this.params.connectionAttempts) {
-          return setTimeout(() => this.connectWebsocket(), this.params.reconnectInterval);
+          console.log('Reconnect...');
+          return setTimeout(() => establishWebsocket(), this.params.reconnectInterval);
         }
 
         return reject(error);

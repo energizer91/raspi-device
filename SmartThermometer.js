@@ -15,43 +15,35 @@ function SmartThermometer(params) {
     temperature: 0,
     humidity: 0
   }
+
+  this.getTemperature();
+
+  setTimeout(() => this.getTemperature(), 10000);
 }
 
 SmartThermometer.prototype = Object.create(SmartDevice.prototype);
 
-SmartThermometer.prototype.getData = function () {
-  if (this.request) {
-    return this.request;
+SmartThermometer.prototype.getTemperature = function() {
+  if (!this.thermometer) {
+    throw new Error('Thermometer is not defined');
   }
 
-  this.request = new Promise((resolve, reject) => {
-    if (!this.thermometer) {
-      return reject(new Error('Thermometer is not defined'));
-    }
+  this.thermometer.read(data => {
+    console.log('Thermometer response', data);
 
-    this.thermometer.read(data => {
-      console.log('Thermometer response', data);
-
-      setTimeout(() => {
-        this.request = null;
-      }, 5000);
-
-      if (data.err) {
-        if (data.checksumError) {
-          return reject(new Error('Checksum error'));
-        }
-
-        return reject(new Error('No data received'));
+    if (data.err) {
+      if (data.checksumError) {
+        throw new Error('Checksum error');
       }
 
-      return resolve({
-        temperature: data.temp,
-        humidity: data.rh
-      });
-    }, this.retries);
-  });
+      throw new Error('No data received');
+    }
 
-  return this.request;
-};
+    this.setData({
+      temperature: data.temp,
+      humidity: data.rh
+    });
+  }, this.retries);
+}
 
 exports = SmartThermometer;
