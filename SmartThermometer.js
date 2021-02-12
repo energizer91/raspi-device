@@ -1,11 +1,8 @@
 const SmartDevice = require('SmartDevice');
 const dht = require('DHT11');
 
-const vid = '0001';
-const pid = '0003';
-
 function SmartThermometer(params) {
-  SmartDevice.call(this, vid, pid, params);
+  SmartDevice.call(this, SmartThermometer.vid, SmartThermometer.pid, params);
 
   this.retries = params.retries || 10;
   this.pin = params.config.pin;
@@ -57,5 +54,8 @@ SmartThermometer.prototype.getTemperature = function() {
     });
   }, this.retries);
 }
+
+SmartThermometer.vid = "0001";
+SmartThermometer.pid = "0003";
 
 exports = SmartThermometer;

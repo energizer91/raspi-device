@@ -3,7 +3,7 @@ const Storage = require("Storage")
 const wifi = require("Wifi");
 
 function connectionManager(name) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     let server = null;
     const listener = (req, res) => {
       const url = req.url;
@@ -77,6 +77,8 @@ function connectionManager(name) {
     const connection = Storage.read("config");
 
     if (!connection) {
+      console.log("Starting hotspot with name", name);
+
       wifi.startAP(name, {}, () => {
         server = http.createServer(listener).listen(80);
       });

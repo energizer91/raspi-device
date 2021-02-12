@@ -13,7 +13,7 @@ function SmartDevice(vid, pid, params) {
     },
     reconnect: true,
     reconnectInterval: 5000,
-    connectionAttempts: 10
+    connectionAttempts: 100
   }, params);
 
   this.name = this.params.name || this.params.vid + '/' + this.params.pid + '/' + this.params.sno;
@@ -33,8 +33,6 @@ SmartDevice.prototype.getConnection = function () {
   }
 
   this.onStartConfiguration();
-
-  console.log("Starting hotspot with name", this.hotspotName);
 
   return connectionManager(this.hotspotName)
     .then(connection => {
@@ -149,7 +147,12 @@ SmartDevice.prototype.connectWebsocket = function () {
 SmartDevice.prototype.connect = function () {
   return this.getConnection()
     .then(() => this.connectWifi())
-    .then(() => this.connectWebsocket());
+    .then(() => this.connectWebsocket())
+    .catch((error) => {
+      console.log("Connection error acquired", error);
+
+      reset();
+    });
 };
 
 SmartDevice.prototype.processMessage = function (packet) {
