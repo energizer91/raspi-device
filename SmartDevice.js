@@ -3,18 +3,6 @@ const WebSocket = require('ws');
 const messageQueue = require('messageQueue');
 const connectionManager = require("connectionManager");
 
-function heartbeat() {
-  clearTimeout(this.pingTimeout);
-
-  this.pingTimeout = setTimeout(() => {
-    this.close();
-  }, 30000 + 1000);
-}
-
-function closeHeartbeat() {
-  clearTimeout(this.pingTimeout);
-}
-
 function SmartDevice(vid, pid, params) {
   this.params = Object.assign({
     pid: pid || '0000',
@@ -38,6 +26,15 @@ function SmartDevice(vid, pid, params) {
   this.registered = false;
 
   return this;
+}
+
+SmartDevice.prototype.resetWatchdog = function() {
+  if (this.connected && this.registered) {
+    return;
+  }
+
+  console.log("Device is still disconnected");
+  this.reset();
 }
 
 SmartDevice.prototype.getConnection = function () {
@@ -112,7 +109,7 @@ SmartDevice.prototype.connectWebsocket = function () {
       try {
         this.ws = new WebSocket(this.connection.gateway, {
           port: this.params.ws.port,
-          keepAlive: 60,
+          keepAlive: 30,
           headers: {
             pid: this.params.pid,
             vid: this.params.vid,
@@ -138,18 +135,14 @@ SmartDevice.prototype.connectWebsocket = function () {
 
         this.registered = true;
         this.onWebsocketConnected(this.ws);
+        setInterval(() => this.resetWatchdog(), 60 * 1000);
+
         return resolve(this.ws);
       });
 
       this.ws.on('message', packet => {
         this.processMessage(packet);
       });
-
-      // Ping pong logic
-      this.ws.on('open', heartbeat);
-      this.ws.on('ping', heartbeat);
-      this.ws.on('close', closeHeartbeat);
-      // End of ping pong logic
 
       this.ws.on('close', () => {
         console.log('WebSocket connection close');
