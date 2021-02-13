@@ -3,6 +3,18 @@ const WebSocket = require('ws');
 const messageQueue = require('messageQueue');
 const connectionManager = require("connectionManager");
 
+function heartbeat() {
+  clearTimeout(this.pingTimeout);
+
+  this.pingTimeout = setTimeout(() => {
+    this.close();
+  }, 30000 + 1000);
+}
+
+function closeHeartbeat() {
+  clearTimeout(this.pingTimeout);
+}
+
 function SmartDevice(vid, pid, params) {
   this.params = Object.assign({
     pid: pid || '0000',
@@ -12,8 +24,9 @@ function SmartDevice(vid, pid, params) {
       port: '8080'
     },
     reconnect: true,
+    denyReset: false,
     reconnectInterval: 5000,
-    connectionAttempts: 100
+    connectionAttempts: 10
   }, params);
 
   this.name = this.params.name || this.params.vid + '/' + this.params.pid + '/' + this.params.sno;
@@ -51,27 +64,31 @@ SmartDevice.prototype.connectWifi = function () {
       this.connected = false;
       this.onStartConnectWifi();
 
-      wifi.connect(this.connection.ssid, {password: this.connection.password}, err => {
-        if (err) {
-          attempts++;
-          this.onWifiError(err);
+      try {
+        wifi.connect(this.connection.ssid, {password: this.connection.password}, err => {
+          if (err) {
+            attempts++;
+            this.onWifiError(err);
 
-          if (this.params.reconnect && attempts <= this.params.connectionAttempts) {
-            return setTimeout(() => establishWifi(), this.params.reconnectInterval);
+            if (this.params.reconnect && attempts <= this.params.connectionAttempts) {
+              return setTimeout(() => establishWifi(), this.params.reconnectInterval);
+            }
+
+            return reject(err);
           }
 
-          return reject(err);
-        }
+          attempts = 0;
+          console.log('Wifi connection successful!');
+          this.connected = true;
 
-        attempts = 0;
-        console.log('Wifi connection successful!');
-        this.connected = true;
+          const status = wifi.getStatus();
 
-        const status = wifi.getStatus();
-
-        this.onWifiConnected(status);
-        return resolve(status);
-      });
+          this.onWifiConnected(status);
+          return resolve(status);
+        });
+      } catch (e) {
+        return reject(e);
+      }
     };
 
     establishWifi();
@@ -92,14 +109,28 @@ SmartDevice.prototype.connectWebsocket = function () {
       this.registered = false;
       this.onStartConnectWebsocket();
 
-      this.ws = new WebSocket(this.connection.gateway, {
-        port: this.params.ws.port,
-        headers: {
-          pid: this.params.pid,
-          vid: this.params.vid,
-          sno: this.params.sno
+      try {
+        this.ws = new WebSocket(this.connection.gateway, {
+          port: this.params.ws.port,
+          keepAlive: 60,
+          headers: {
+            pid: this.params.pid,
+            vid: this.params.vid,
+            sno: this.params.sno
+          }
+        });
+      } catch (e) {
+        console.log("Websocket creation error", e);
+        attempts++;
+
+        if (this.params.reconnect && attempts <= this.params.connectionAttempts) {
+          console.log('Reconnect...');
+          return setTimeout(() => establishWebsocket(), this.params.reconnectInterval);
         }
-      });
+
+        this.reset();
+        return;
+      }
 
       this.ws.on('open', () => {
         console.log('WebSocket connection successful!');
@@ -114,35 +145,43 @@ SmartDevice.prototype.connectWebsocket = function () {
         this.processMessage(packet);
       });
 
-      this.ws.on('close', (code) => {
-        console.log('WebSocket connection close', code);
+      // Ping pong logic
+      this.ws.on('open', heartbeat);
+      this.ws.on('ping', heartbeat);
+      this.ws.on('close', closeHeartbeat);
+      // End of ping pong logic
+
+      this.ws.on('close', () => {
+        console.log('WebSocket connection close');
         attempts++;
 
-        this.onWebsocketClose(code);
-
-        if (this.params.reconnect) {
-          console.log('Reconnect...');
-          return setTimeout(() => establishWebsocket(), this.params.reconnectInterval);
-        }
-      });
-
-      this.ws.on('error', (error) => {
-        console.log('WebSocket connection error', error);
-
-        this.onWebsocketError(error);
+        this.onWebsocketClose();
 
         if (this.params.reconnect && attempts <= this.params.connectionAttempts) {
           console.log('Reconnect...');
           return setTimeout(() => establishWebsocket(), this.params.reconnectInterval);
         }
 
-        return reject(error);
+        if (!this.ws) {
+          return reject(new Error("Websocket reconnect limit reached"));
+        }
+
+        this.reset();
       });
     };
 
     establishWebsocket();
   });
 };
+
+SmartDevice.prototype.reset = function () {
+  if (this.params.denyReset) {
+    return;
+  }
+  console.log("Resetting device...");
+
+  reset();
+}
 
 SmartDevice.prototype.connect = function () {
   return this.getConnection()
@@ -151,7 +190,7 @@ SmartDevice.prototype.connect = function () {
     .catch((error) => {
       console.log("Connection error acquired", error);
 
-      reset();
+      this.reset();
     });
 };
 
@@ -258,9 +297,7 @@ SmartDevice.prototype.onStartConnectWebsocket = function () {};
 
 SmartDevice.prototype.onWebsocketConnected = function (ws) {};
 
-SmartDevice.prototype.onWebsocketError = function (e) {};
-
-SmartDevice.prototype.onWebsocketClose = function (e) {};
+SmartDevice.prototype.onWebsocketClose = function () {};
 
 SmartDevice.prototype.sendAPIRequest = function (request, payload) {
   const uuid = Math.random().toString();

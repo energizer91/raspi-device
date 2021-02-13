@@ -133,11 +133,6 @@ SmartControlPanel.prototype.onWebsocketConnected = function () {
   this.executeAction('goHome');
 };
 
-SmartControlPanel.prototype.onWebsocketError = function (e) {
-  this.setStatusBar();
-  this.writeText('Websocket error! ' + e.message);
-};
-
 SmartControlPanel.prototype.writeText = function (text) {
   this.lcd.setCursor(0, 1);
   if (!text) {

@@ -85,7 +85,7 @@ SmartMeteoStation.prototype.onWebsocketConnected = function () {
   this.setStatusBar();
 };
 
-SmartMeteoStation.prototype.onWebsocketError = function (e) {
+SmartMeteoStation.prototype.onWebsocketClose = function () {
   this.setStatusBar();
 };
 
