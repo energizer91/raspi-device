@@ -9,7 +9,7 @@ const HEATING_COOLING_STATES = {
 }
 
 function executeSequentally(promises) {
-  return promises.reduce((acc, p) => acc.then(p), Promise.resolve());
+  return promises.reduce((acc, p) => acc.then(() => p), Promise.resolve());
 }
 
 function SmartThermostat(params) {
