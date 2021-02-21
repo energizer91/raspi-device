@@ -1,12 +1,10 @@
 const queue = {};
 
 function addMessage(uuid, callback, timeout) {
-  const errorTimeout = setTimeout(() => rejectMessage(uuid, new Error('Operation timeout')), timeout || 20000);
-
   queue[uuid] = {
     callback: callback,
-    timeout: timeout || 20000,
-    errorTimeout: errorTimeout
+    timeout: timeout || 20,
+    tick: 0
   };
 }
 
@@ -23,16 +21,26 @@ function rejectMessage(uuid, error) {
 }
 
 function deleteMessage(uuid) {
-  if (queue[uuid].errorTimeout) {
-    clearTimeout(queue[uuid].errorTimeout);
-  }
-
   delete queue[uuid];
 }
 
 function hasQueue(uuid) {
   return queue[uuid];
 }
+
+setInterval(() => {
+  for (let uuid in queue) {
+    if (!queue[uuid]) {
+      continue;
+    }
+
+    queue[uuid].tick++;
+
+    if (queue[uuid].tick >= queue[uuid].timeout) {
+      rejectMessage(uuid, new Error('Operation timeout'));
+    }
+  }
+}, 1000);
 
 exports = {
   addMessage: addMessage,

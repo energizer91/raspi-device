@@ -2,6 +2,7 @@ const wifi = require('Wifi');
 const WebSocket = require('ws');
 const messageQueue = require('messageQueue');
 const connectionManager = require("connectionManager");
+const Storage = require("Storage");
 
 function SmartDevice(vid, pid, params) {
   this.params = Object.assign({
@@ -16,6 +17,14 @@ function SmartDevice(vid, pid, params) {
     reconnectInterval: 5000,
     connectionAttempts: 10
   }, params);
+
+  const config = Storage.read(this.params.sno + ".config");
+
+  if (!config) {
+    this.config = params.config || {};
+  } else {
+    this.config = Object.assign({}, JSON.parse(config), params.config);
+  }
 
   this.name = this.params.name || this.params.vid + '/' + this.params.pid + '/' + this.params.sno;
   this.hotspotName = "SmartDevice_" + this.params.pid + "_" + this.params.vid;
@@ -62,6 +71,18 @@ SmartDevice.prototype.connectWifi = function () {
       this.onStartConnectWifi();
 
       try {
+        const status = wifi.getDetails();
+
+        if (status.status === "connected") {
+          attempts = 0;
+          console.log('Wifi is already been connected');
+          this.connected = true;
+
+          this.onWifiConnected(status);
+
+          return resolve(status);
+        }
+
         wifi.connect(this.connection.ssid, {password: this.connection.password}, err => {
           if (err) {
             attempts++;
@@ -78,7 +99,7 @@ SmartDevice.prototype.connectWifi = function () {
           console.log('Wifi connection successful!');
           this.connected = true;
 
-          const status = wifi.getStatus();
+          const status = wifi.getDetails();
 
           this.onWifiConnected(status);
           return resolve(status);
@@ -171,9 +192,9 @@ SmartDevice.prototype.reset = function () {
   if (this.params.denyReset) {
     return;
   }
-  console.log("Resetting device...");
+  console.log("Rebooting device...");
 
-  reset();
+  E.reboot();
 }
 
 SmartDevice.prototype.connect = function () {
@@ -264,11 +285,14 @@ SmartDevice.prototype.sendSignal = function (signal) {
   return this.sendMessage({type: 'signal', signal: signal});
 };
 
-SmartDevice.prototype.setData = function (newData) {
+SmartDevice.prototype.setData = function (newData, silent) {
   const oldData = this.data;
 
   this.data = Object.assign({}, this.data, newData);
-  this.process(oldData);
+
+  if (!silent) {
+    this.process(oldData);
+  }
 };
 
 SmartDevice.prototype.process = function (prevData) {
@@ -304,7 +328,7 @@ SmartDevice.prototype.sendAPIRequest = function (request, payload) {
       }
 
       return resolve(result);
-    }, 10000);
+    }, 10);
   });
 };
 

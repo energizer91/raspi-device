@@ -16,10 +16,11 @@ function SmartMeteoStation(params) {
   I2C1.setup({sda: this.lcdPins[0], scl: this.lcdPins[1], bitrate:400000});
   this.lcd = LCD.connect(I2C1, () => this.onLCDReady(), {address: 0x3C});
 
-  // pinMode(this.buttonPin, 'input');
-  // setWatch((e) => this.onButtonPress(e), this.buttonPin, { repeat: true, edge: 'rising', debounce: 50 });
+  this.connectButton();
 
   this.selectedTab = 0;
+  this.screenIsOff = false;
+  this.screenTimeout = null;
 
   this.tabs = [
     {
@@ -39,9 +40,33 @@ function SmartMeteoStation(params) {
   })));
 
   this.lcdReady = false;
+  this.rendered = false;
 }
 
 SmartMeteoStation.prototype = Object.create(SmartThermometer.prototype);
+
+SmartMeteoStation.prototype.flip = function () {
+  if (!this.lcdReady) {
+    return;
+  }
+
+  if (this.rendered) {
+    return;
+  }
+
+  this.rendered = true;
+
+  setTimeout(() => {
+    this.lcd.flip();
+
+    this.rendered = false;
+  }, 0);
+}
+
+SmartMeteoStation.prototype.connectButton = function () {
+  pinMode(this.buttonPin, 'input_pullup');
+  setWatch((e) => this.onButtonPress(e), this.buttonPin, { repeat: true, edge: 'falling', debounce: 50 });
+}
 
 SmartMeteoStation.prototype.onLCDReady = function() {
   this.lcdReady = true;
@@ -54,8 +79,37 @@ SmartMeteoStation.prototype.onLCDConnect = function() {
   this.changeTab();
 
   this.updateTemperature();
-  setInterval(() => this.onButtonPress(), 10000);
+  this.screenTimeout = setTimeout(() => this.LCDOff(), 10000);
 };
+
+SmartMeteoStation.prototype.LCDOff = function () {
+  if (!this.lcd) {
+    return;
+  }
+
+  this.lcd.off();
+  this.screenIsOff = true;
+
+  if (this.screenTimeout) {
+    clearTimeout(this.screenTimeout);
+    this.screenTimeout = null;
+  }
+}
+
+SmartMeteoStation.prototype.LCDOn = function () {
+  if (!this.lcd) {
+    return;
+  }
+
+  this.lcd.on();
+  this.screenIsOff = false;
+
+  if (this.screenTimeout) {
+    clearTimeout(this.screenTimeout);
+  }
+
+  this.screenTimeout = setTimeout(() => this.LCDOff(), 10000);
+}
 
 SmartMeteoStation.prototype.onStartConfiguration = function () {
   this.setStatusBar();
@@ -110,7 +164,7 @@ SmartMeteoStation.prototype.setStatusBar = function () {
     this.lcd.drawCircle(120 + radius, radius, radius);
   }
 
-  this.lcd.flip();
+  this.flip();
 };
 
 SmartMeteoStation.prototype.setTitle = function (newTitle) {
@@ -125,7 +179,7 @@ SmartMeteoStation.prototype.setTitle = function (newTitle) {
   this.lcd.setFont6x8();
   this.lcd.drawString(title, 0, 2);
 
-  this.lcd.flip();
+  this.flip();
 }
 
 SmartMeteoStation.prototype.setTabs = function () {
@@ -215,7 +269,16 @@ SmartMeteoStation.prototype.getForecast = function () {
     .catch(error => console.log('Error: ' + error.message));
 };
 
-SmartMeteoStation.prototype.onButtonPress = function(e) {
+SmartMeteoStation.prototype.onButtonPress = function () {
+  console.log("Button pressed!");
+
+  if (this.screenIsOff) {
+    this.LCDOn();
+    return;
+  } else {
+    this.LCDOn();
+  }
+
   this.selectedTab += 1;
 
   if (this.selectedTab >= this.tabs.length) {
@@ -250,7 +313,7 @@ SmartMeteoStation.prototype.renderIndoorTemperature = function() {
   this.lcd.setFont6x8();
   this.lcd.drawString(this.data.humidity + '% RH', 0, 45);
 
-  this.lcd.flip();
+  this.flip();
 }
 
 SmartMeteoStation.prototype.renderForecast = function () {
@@ -271,7 +334,7 @@ SmartMeteoStation.prototype.renderForecast = function () {
   this.lcd.drawString(city.humidity + '% RH', 0, 45);
   this.lcd.drawString(city.weather, 0, 54);
 
-  this.lcd.flip();
+  this.flip();
 };
 
 exports = SmartMeteoStation;

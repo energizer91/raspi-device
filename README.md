@@ -24,6 +24,7 @@ PID is 4 16bit digit code of Product ID starting from 0001;
 | 0006 | Smart RGB LED            |
 | 0007 | Smart meteo station      |
 | 0008 | Smart Control            |
+| 0009 | Smart Thermostat         |
 
 
 ## Registered devices:
@@ -34,6 +35,8 @@ There's a list of already registered devices (in my server at least):
 |------|------|----------|
 | 0001 | 0003 | 00000003 |
 | 0001 | 0007 | 00000007 |
+| 0001 | 0003 | 00000009 |
+| 0001 | 0009 | 00000010 |
 
 ## Connecting new devices:
 
@@ -64,6 +67,6 @@ python esptool.py --port COM6 --baud 115200 write_flash --flash_freq 80m --flash
 Get the latest firmware for ESP32 from https://www.espruino.com/ESP32. Install esptools.
 
 ```bash
-python esptool.py --port COM6 --baud 115200 write_flash --flash_freq 80m --flash_mode qio --flash_size 32m 0x0000 boot_v1.6.bin 0x1000 espruino_esp8266_user1.bin 0x3FC000 esp_init_data_default.bin 0x3FE000 blank.bin
+python esptool.py --chip esp32 --port COM5 --baud 921600 --after hard_reset write_flash -z --flash_mode dio --flash_freq 40m --flash_size detect 0x1000 bootloader.bin 0x8000 partitions_espruino.bin 0x10000 espruino_esp32.bin
 ```
 
