@@ -1,6 +1,7 @@
 const queue = {};
 
 function addMessage(uuid, callback, timeout) {
+  console.log("Adding message to queue", uuid);
   queue[uuid] = {
     callback: callback,
     timeout: timeout || 20,
@@ -10,12 +11,14 @@ function addMessage(uuid, callback, timeout) {
 
 function resolveMessage(uuid, data) {
   queue[uuid].callback(null, data);
+  console.log("Resolving message", uuid);
 
   deleteMessage(uuid);
 }
 
 function rejectMessage(uuid, error) {
   queue[uuid].callback(error);
+  console.log("Message error", uuid, error);
 
   deleteMessage(uuid);
 }

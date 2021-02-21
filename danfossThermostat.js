@@ -22,6 +22,8 @@ function DanfossThermostat (name, mac, secret) {
 
   this.gatt = null;
   this.service = null;
+
+  NRF.disconnect();
 }
 
 DanfossThermostat.prototype.connect = function () {

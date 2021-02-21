@@ -8,12 +8,17 @@ const HEATING_COOLING_STATES = {
   AUTO: 3
 }
 
+function executeSequentally(promises) {
+  return promises.reduce((acc, p) => acc.then(p), Promise.resolve());
+}
+
 function SmartThermostat(params) {
   SmartDevice.call(this, SmartThermostat.vid, SmartThermostat.pid, params);
 
   this.retries = params.retries || 10;
   this.thermostats = (this.config.thermostats || []).map(t => new DanfossThermostat(t.name, t.mac, t.secret));
-  this.updateInterval = 5 * 60 * 1000;
+  this.updateInterval = 10 * 1000;
+  this.updateCounter = 0;
 
   this.needUpdate = false;
   this.data = this.thermostats.reduce((acc, t) => {
@@ -49,6 +54,17 @@ SmartThermostat.prototype.updateValues = function () {
           return thermostat.setTemperature(temperature);
         }
 
+        if (this.updateCounter < 30) {
+          if (this.updateCounter !== 0) { // run for first time
+            this.updateCounter++;
+            return;
+          }
+
+          this.updateCounter++;
+        } else {
+          this.updateCounter = 0;
+        }
+
         return thermostat.getTemperature()
           .then(temperature => {
             const temperatureDelta = temperature.target - temperature.current;
@@ -77,7 +93,7 @@ SmartThermostat.prototype.updateValues = function () {
       .then(() => thermostat.disconnect());
   });
 
-  return Promise.all(thermostatActions)
+  return executeSequentally(thermostatActions)
     .catch(e => {
       console.log("Thermostats updating error", e);
     })
