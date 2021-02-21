@@ -18,7 +18,7 @@ function SmartThermostat(params) {
   this.retries = params.retries || 10;
   this.thermostats = (this.config.thermostats || []).map(t => new DanfossThermostat(t.name, t.mac, t.secret));
   this.updateInterval = 10 * 1000;
-  this.updateCounter = 0;
+  this.updateCounter = -1; // to run it first time
 
   this.needUpdate = false;
   this.data = this.thermostats.reduce((acc, t) => {
@@ -43,6 +43,16 @@ SmartThermostat.prototype.updateValues = function () {
     return;
   }
 
+  if (this.updateCounter < 30) {
+    this.updateCounter++;
+  } else {
+    this.updateCounter = 0;
+  }
+
+  if (!this.needUpdate && this.updateCounter > 0 && this.updateCounter < 30) {
+    return Promise.resolve();
+  }
+
   const thermostatActions = this.thermostats.map(thermostat => {
     return thermostat.connect()
       .then(() => thermostat.getService())
@@ -54,15 +64,8 @@ SmartThermostat.prototype.updateValues = function () {
           return thermostat.setTemperature(temperature);
         }
 
-        if (this.updateCounter < 30) {
-          if (this.updateCounter !== 0) { // run for first time
-            this.updateCounter++;
-            return;
-          }
-
-          this.updateCounter++;
-        } else {
-          this.updateCounter = 0;
+        if (this.updateCounter < 30 && this.updateCounter > 0) {
+          return;
         }
 
         return thermostat.getTemperature()
