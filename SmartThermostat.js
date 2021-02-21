@@ -50,6 +50,7 @@ SmartThermostat.prototype.updateValues = function () {
   }
 
   if (!this.needUpdate && this.updateCounter > 0 && this.updateCounter < 30) {
+    setTimeout(() => this.updateValues(), this.updateInterval);
     return Promise.resolve();
   }
 
