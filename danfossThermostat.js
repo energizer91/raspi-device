@@ -20,13 +20,18 @@ function DanfossThermostat (name, mac, secret) {
   this.temperatureUUID = '10020005-2749-0001-0000-00805F9B042F';
   this.secretUUID = '1002000B-2749-0001-0000-00805F9B042F';
 
+  this.connecting = false;
   this.gatt = null;
   this.service = null;
-
-  NRF.disconnect();
 }
 
 DanfossThermostat.prototype.connect = function () {
+  if (this.connecting) {
+    return Promise.reject(new Error("Already been connected"));
+  }
+
+  this.connecting = true;
+
   return NRF.connect(this.mac + ' public')
     .then(gatt => {
       this.gatt = gatt;
@@ -36,6 +41,8 @@ DanfossThermostat.prototype.connect = function () {
 }
 
 DanfossThermostat.prototype.disconnect = function () {
+  this.connecting = false;
+
   if (!this.gatt) {
     return Promise.resolve();
   }

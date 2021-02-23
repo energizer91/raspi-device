@@ -1,13 +1,6 @@
 const SmartDevice = require('SmartDevice');
 const DanfossThermostat = require('danfossThermostat');
 
-const HEATING_COOLING_STATES = {
-  OFF: 0,
-  HEAT: 1,
-  COOL: 2,
-  AUTO: 3
-}
-
 function executeSequentally(promises) {
   return promises.reduce((acc, p) => acc.then(() => p), Promise.resolve());
 }
@@ -17,44 +10,31 @@ function SmartThermostat(params) {
 
   this.retries = params.retries || 10;
   this.thermostats = (this.config.thermostats || []).map(t => new DanfossThermostat(t.name, t.mac, t.secret));
-  this.updateInterval = 10 * 1000;
-  this.updateCounter = -1; // to run it first time
+  this.updateInterval = 5 * 60 * 1000;
 
   this.needUpdate = false;
   this.data = this.thermostats.reduce((acc, t) => {
     acc[t.mac] = {
       name: t.name,
       current: 0,
-      target: 0,
-      targetHeatingCooling: HEATING_COOLING_STATES.OFF,
-      currentHeatingCooling: HEATING_COOLING_STATES.AUTO
+      target: 0
     }
 
     return acc;
   }, {});
+
+  setInterval(() => this.updateValues(), this.updateInterval);
 
   this.updateValues();
 }
 
 SmartThermostat.prototype = Object.create(SmartDevice.prototype);
 
-SmartThermostat.prototype.updateValues = function () {
-  if (!this.thermostats || !this.thermostats.length) {
-    return;
-  }
+SmartThermostat.prototype.updateThermostat = function (thermostat) {
+  return new Promise((resolve, reject) => {
+    console.log("Updating thermostat", thermostat.name);
+    const errorTimeout = setTimeout(() => reject(new Error("Thermostat " + thermostat.name + " update timeout")), 60 * 1000);
 
-  if (this.updateCounter < 30) {
-    this.updateCounter++;
-  } else {
-    this.updateCounter = 0;
-  }
-
-  if (!this.needUpdate && this.updateCounter > 0 && this.updateCounter < 30) {
-    setTimeout(() => this.updateValues(), this.updateInterval);
-    return Promise.resolve();
-  }
-
-  const thermostatActions = this.thermostats.map(thermostat => {
     return thermostat.connect()
       .then(() => thermostat.getService())
       .then(() => thermostat.login())
@@ -65,45 +45,55 @@ SmartThermostat.prototype.updateValues = function () {
           return thermostat.setTemperature(temperature);
         }
 
-        if (this.updateCounter < 30 && this.updateCounter > 0) {
-          return;
-        }
-
         return thermostat.getTemperature()
           .then(temperature => {
-            const temperatureDelta = temperature.target - temperature.current;
-            let targetHeatingCooling = HEATING_COOLING_STATES.OFF;
-
-            if (temperatureDelta < 0) {
-              targetHeatingCooling = HEATING_COOLING_STATES.COOL;
-            } else if (temperatureDelta > 0) {
-              targetHeatingCooling = HEATING_COOLING_STATES.HEAT;
-            }
-
             const newData = {};
 
             newData[thermostat.mac] = {
               name: thermostat.name,
               current: temperature.current,
-              target: temperature.target,
-              targetHeatingCooling: targetHeatingCooling,
-              currentHeatingCooling: HEATING_COOLING_STATES.AUTO
+              target: temperature.target
             };
 
             this.setData(newData, true);
           });
       })
-      .catch(e => console.log("Thermostat error", e))
-      .then(() => thermostat.disconnect());
-  });
+      .catch(e => console.log("Thermostat error", thermostat.name, e))
+      .then(() => thermostat.disconnect())
+      .catch(e => {
+        console.log("Thermostat disconnect error", thermostat.name, e);
+        return NRF.disconnect();
+      })
+      .then(() => {
+        if (errorTimeout) {
+          clearTimeout(errorTimeout);
+          console.log("Thermostat update complete", thermostat.name);
 
-  return executeSequentally(thermostatActions)
+          return resolve();
+        }
+      });
+
+  })
+}
+
+SmartThermostat.prototype.updateValues = function () {
+  if (!this.thermostats || !this.thermostats.length) {
+    return Promise.resolve();
+  }
+
+  return this.disconnect()
+    .then(() => this.delay(5000))
+    .then(() => executeSequentally(this.thermostats.map(thermostat =>
+      this.updateThermostat(thermostat)
+        .then(() => this.delay(5000))
+    )))
     .catch(e => {
       console.log("Thermostats updating error", e);
     })
+    .then(() => this.delay(5000))
     .then(() => {
       this.needUpdate = false;
-      setTimeout(() => this.updateValues(), this.updateInterval);
+      return this.connect();
     });
 }
 
