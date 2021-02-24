@@ -58,12 +58,6 @@ SmartThermostat.prototype.updateThermostat = function (thermostat) {
             this.setData(newData, true);
           });
       })
-      .catch(e => console.log("Thermostat error", thermostat.name, e))
-      .then(() => thermostat.disconnect())
-      .catch(e => {
-        console.log("Thermostat disconnect error", thermostat.name, e);
-        return NRF.disconnect();
-      })
       .then(() => {
         if (errorTimeout) {
           clearTimeout(errorTimeout);
@@ -72,8 +66,13 @@ SmartThermostat.prototype.updateThermostat = function (thermostat) {
           return resolve();
         }
       });
-
   })
+    .catch(e => console.log("Thermostat error", thermostat.name, e))
+    .then(() => thermostat.disconnect())
+    .catch(e => {
+      console.log("Thermostat disconnect error", thermostat.name, e);
+      return NRF.disconnect();
+    });
 }
 
 SmartThermostat.prototype.updateValues = function () {
