@@ -305,13 +305,18 @@ SmartMeteoStation.prototype.renderIndoorTemperature = function() {
 
   this.clearArea(0, 12, 119, 64);
 
+  const temperature = this.data.temperature.toFixed(1);
+  const humidity = this.data.humidity.toFixed(1);
+  const heatIndex = this.data.heatIndex.toFixed(1);
+
   this.lcd.setFontVector(30);
-  const temperatureWidth = this.lcd.stringWidth(this.data.temperature);
-  this.lcd.drawString(this.data.temperature, 0, 12);
+  const temperatureWidth = this.lcd.stringWidth(temperature);
+  this.lcd.drawString(temperature, 0, 12);
   this.lcd.drawCircle(temperatureWidth + 6, 16, 3);
   this.lcd.drawString('C', temperatureWidth + 10, 12);
   this.lcd.setFont6x8();
-  this.lcd.drawString(this.data.humidity + '% RH', 0, 45);
+  this.lcd.drawString(humidity + '% RH', 0, 45);
+  this.lcd.drawString(heatIndex + " HI", 0, 54);
 
   this.flip();
 }
@@ -336,5 +341,11 @@ SmartMeteoStation.prototype.renderForecast = function () {
 
   this.flip();
 };
+
+SmartMeteoStation.prototype.process = function () {
+  if (this.tabs[this.selectedTab] === "indoor") {
+    this.renderIndoorTemperature();
+  }
+}
 
 exports = SmartMeteoStation;

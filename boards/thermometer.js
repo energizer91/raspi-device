@@ -2,7 +2,10 @@ const SmartThermometer = require("SmartThermometer");
 
 const thermometer = new SmartThermometer({
   config: {
-    pin: NodeMCU.D4
+    pins: {
+      sda: NodeMCU.D4,
+      scl: NodeMCU.D5
+    }
   },
   sno: "00000003"
 });

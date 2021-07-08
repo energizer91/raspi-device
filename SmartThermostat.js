@@ -10,9 +10,13 @@ function SmartThermostat(params) {
 
   this.retries = params.retries || 10;
   this.thermostats = (this.config.thermostats || []).map(t => new DanfossThermostat(t.name, t.mac, t.secret));
-  this.updateInterval = 5 * 60 * 1000;
+  this.updateInterval = 60 * 1000;
 
+  this.lastUpdate = null;
+  this.errors = 0;
+  this.targetErrorsToReset = 6;
   this.needUpdate = false;
+  this.updating = false;
   this.data = this.thermostats.reduce((acc, t) => {
     acc[t.mac] = {
       name: t.name,
@@ -35,15 +39,19 @@ SmartThermostat.prototype.updateThermostat = function (thermostat) {
     console.log("Updating thermostat", thermostat.name);
     const errorTimeout = setTimeout(() => reject(new Error("Thermostat " + thermostat.name + " update timeout")), 60 * 1000);
 
-    return thermostat.connect()
+    return thermostat.observe()
       .then(() => thermostat.getService())
       .then(() => thermostat.login())
       .then(() => {
         if (this.needUpdate) {
           const temperature = this.data[thermostat.mac].target;
 
+          console.log("Writing new temperature");
+
           return thermostat.setTemperature(temperature);
         }
+
+        console.log("Getting new temperature");
 
         return thermostat.getTemperature()
           .then(temperature => {
@@ -58,45 +66,65 @@ SmartThermostat.prototype.updateThermostat = function (thermostat) {
             this.setData(newData, true);
           });
       })
+      .catch(e => {
+        this.errors++;
+        console.log("Thermostat error", thermostat.name, e);
+      })
+      .then(() => thermostat.disconnect())
       .then(() => {
         if (errorTimeout) {
           clearTimeout(errorTimeout);
           console.log("Thermostat update complete", thermostat.name);
 
+          if (this.errors > this.targetErrorsToReset) {
+            console.log("Too many errors");
+
+            this.reset();
+
+            return resolve();
+          }
+
           return resolve();
         }
       });
-  })
-    .catch(e => console.log("Thermostat error", thermostat.name, e))
-    .then(() => thermostat.disconnect())
-    .catch(e => {
-      console.log("Thermostat disconnect error", thermostat.name, e);
-      return NRF.disconnect();
-    });
+  });
 }
 
 SmartThermostat.prototype.updateValues = function () {
   if (!this.thermostats || !this.thermostats.length) {
-    return Promise.resolve();
+    return;
   }
 
-  return this.disconnect()
-    .then(() => this.delay(5000))
-    .then(() => executeSequentally(this.thermostats.map(thermostat =>
+
+
+  if (!this.needUpdate && (this.lastUpdate && (Date.now() - this.lastUpdate < 60 * 60 * 1000))) {
+    console.log("Nothing to update");
+    return;
+  }
+
+  if (this.updating) {
+    console.log("Update is already in progress");
+    return;
+  }
+
+  this.updating = true;
+
+  return executeSequentally(this.thermostats.map(thermostat =>
       this.updateThermostat(thermostat)
         .then(() => this.delay(5000))
-    )))
+    ))
     .catch(e => {
       console.log("Thermostats updating error", e);
     })
-    .then(() => this.delay(5000))
     .then(() => {
+      this.lastUpdate = Date.now();
       this.needUpdate = false;
-      return this.connect();
+      this.updating = false;
     });
 }
 
 SmartThermostat.prototype.process = function () {
+  console.log("New temperature has been reported");
   this.needUpdate = true;
 }
 

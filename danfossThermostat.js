@@ -32,11 +32,26 @@ DanfossThermostat.prototype.connect = function () {
 
   this.connecting = true;
 
-  return NRF.connect(this.mac + ' public')
+  return NRF.connect(this.mac + " public")
     .then(gatt => {
       this.gatt = gatt;
 
       return this.gatt;
+    });
+}
+
+DanfossThermostat.prototype.observe = function () {
+  if (this.connecting) {
+    return Promise.reject(new Error("Already been connected"));
+  }
+
+  this.connecting = true;
+
+  return NRF.requestDevice({timeout: 30000, filters: [{id: this.mac}]})
+    .then(device => {
+      this.gatt = device.gatt;
+
+      return this.gatt.connect();
     });
 }
 
